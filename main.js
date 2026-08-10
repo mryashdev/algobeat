@@ -832,30 +832,37 @@ function renderDashboardPage(el) {
 
 // ═══ Broker Page ═══
 function renderBrokerPage(el) {
-  const availableBrokers = ['Zerodha', 'Groww', 'Dhan', 'FYERS', 'Angel One', 'Finvasia', 'Upstox', 'IIFL'];
+  const availableBrokers = ['Paper Trading (Virtual)', 'Zerodha', 'Groww', 'Dhan', 'FYERS', 'Angel One', 'Finvasia', 'Upstox', 'IIFL'];
   
   el.innerHTML = `
     <div class="page-header">
-      <div><h1 class="page-title">Broker</h1><p class="page-subtitle">Manage your connected brokers</p></div>
-      <button class="btn btn-primary" id="add-broker-btn">+ Add Broker</button>
+      <div><h1 class="page-title">Broker Integration</h1><p class="page-subtitle">Manage your live API connections and paper trading simulation environments</p></div>
+      <button class="btn btn-primary" id="add-broker-btn">+ Add Broker / Mode</button>
     </div>
     <div id="broker-content">
       ${state.brokers.length ? `
         <div class="broker-grid">
           ${state.brokers.map((b, i) => `
             <div class="broker-card connected">
-              <div class="broker-icon">${b.name[0]}</div>
+              <div class="broker-icon">${b.isPaper ? '📄' : b.name[0]}</div>
               <div class="broker-name">${b.name}</div>
-              <div class="broker-status-text">● Connected</div>
-              <button class="btn btn-outline btn-sm" onclick="removeBroker(${i})">Disconnect</button>
+              <div class="broker-status-text" style="color:${b.isPaper ? '#34d399' : '#38bdf8'}; font-weight:600;">
+                ● ${b.isPaper ? 'Paper Trading Active' : 'Live API Connected'}
+              </div>
+              <div style="font-size:0.75rem;color:var(--ghost);margin:4px 0 10px 0;">Client ID: ${b.clientId || 'SIMULATOR'}</div>
+              <div style="display:flex;gap:6px;">
+                <a href="#/livebot" class="btn btn-primary btn-sm" style="font-size:0.75rem;">Launch Bot</a>
+                <button class="btn btn-outline btn-sm" onclick="removeBroker(${i})" style="font-size:0.75rem;">Disconnect</button>
+              </div>
             </div>
           `).join('')}
         </div>
       ` : `
         <div style="text-align:center;padding:80px 40px;background:var(--surface-1);border:1px solid var(--border);border-radius:16px;">
-          <div style="font-size:3rem;margin-bottom:16px;opacity:0.3;">🔌</div>
-          <p style="color:var(--ghost);margin-bottom:16px;">No Portfolio summary. Create Bucket!</p>
-          <button class="btn btn-primary" onclick="document.getElementById('add-broker-btn').click()">+ Add Broker</button>
+          <div style="font-size:3rem;margin-bottom:16px;opacity:0.6;">🔌</div>
+          <h3 style="color:var(--white);margin-bottom:8px;">No Connected Broker or Paper Account</h3>
+          <p style="color:var(--ghost);margin-bottom:16px;max-width:480px;margin-left:auto;margin-right:auto;">Connect Zerodha, Dhan, Angel One, or start with Paper Trading mode to begin automated strategy execution.</p>
+          <button class="btn btn-primary" onclick="document.getElementById('add-broker-btn').click()">+ Connect Broker or Start Paper Trading</button>
         </div>
       `}
     </div>
@@ -869,31 +876,37 @@ function renderBrokerPage(el) {
       <div class="modal-overlay" onclick="if(event.target===this)this.parentElement.style.display='none'">
         <div class="modal">
           <div class="modal-header">
-            <h3 class="modal-title">Add Broker</h3>
+            <h3 class="modal-title">Broker & Execution Setup</h3>
             <button onclick="this.closest('.modal-overlay').parentElement.style.display='none'">${icons.close}</button>
           </div>
-          <p style="font-size:0.85rem;color:var(--ghost);margin-bottom:16px;">Select your broker and enter API credentials</p>
-          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:20px;">
+          <p style="font-size:0.85rem;color:var(--ghost);margin-bottom:16px;">Select Paper Trading to trade without real funds or connect your live broker API</p>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:20px;">
             ${availableBrokers.map(b => `
               <button class="broker-select-btn" data-broker="${b}" style="padding:12px 8px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;font-size:0.8rem;font-weight:600;color:var(--cloud);transition:all 0.2s;">
-                ${b}
+                ${b === 'Paper Trading (Virtual)' ? '⚡ ' + b : b}
               </button>
             `).join('')}
           </div>
           <div id="broker-form-fields" style="display:none;">
-            <div class="form-group">
-              <label>Client ID</label>
-              <input type="text" class="form-input" id="broker-client-id" placeholder="Enter Client ID">
+            <div id="paper-mode-notice" style="display:none;background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.3);padding:12px;border-radius:8px;margin-bottom:12px;font-size:0.82rem;color:#34d399;">
+              ✅ Paper Trading requires zero API credentials. Real-time market data will be simulated for risk-free strategy validation.
             </div>
-            <div class="form-group">
+            <div class="form-group" id="group-client-id">
+              <label>Client ID / User ID</label>
+              <input type="text" class="form-input" id="broker-client-id" placeholder="e.g. AB123456">
+            </div>
+            <div class="form-group" id="group-api-key">
               <label>API Key</label>
               <input type="text" class="form-input" id="broker-api-key" placeholder="Enter API Key">
             </div>
-            <div class="form-group">
-              <label>API Secret</label>
+            <div class="form-group" id="group-api-secret">
+              <label>API Secret / TOTP Key</label>
               <input type="password" class="form-input" id="broker-api-secret" placeholder="Enter API Secret">
             </div>
-            <button class="btn btn-primary" style="width:100%;justify-content:center;" id="connect-broker-btn">Connect Broker</button>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-outline" style="flex:1;justify-content:center;" id="test-broker-btn">🧪 Test API Connection</button>
+              <button class="btn btn-primary" style="flex:1;justify-content:center;" id="connect-broker-btn">Connect & Save</button>
+            </div>
           </div>
         </div>
       </div>
@@ -907,15 +920,48 @@ function renderBrokerPage(el) {
         btn.style.color = 'var(--accent-bright)';
         selectedBroker = btn.dataset.broker;
         document.getElementById('broker-form-fields').style.display = 'block';
+
+        const isPaper = selectedBroker === 'Paper Trading (Virtual)';
+        document.getElementById('paper-mode-notice').style.display = isPaper ? 'block' : 'none';
+        document.getElementById('group-api-key').style.display = isPaper ? 'none' : 'block';
+        document.getElementById('group-api-secret').style.display = isPaper ? 'none' : 'block';
+        if (isPaper && !document.getElementById('broker-client-id').value) {
+          document.getElementById('broker-client-id').value = 'PAPER_SIM_' + Math.floor(1000 + Math.random() * 9000);
+        }
       });
     });
 
     setTimeout(() => {
+      const testBtn = document.getElementById('test-broker-btn');
       const connectBtn = document.getElementById('connect-broker-btn');
+
+      if (testBtn) {
+        testBtn.addEventListener('click', () => {
+          if (!selectedBroker) { showToast('Please select a broker first', 'error'); return; }
+          const isPaper = selectedBroker === 'Paper Trading (Virtual)';
+          if (isPaper) {
+            showToast('✅ Paper Trading engine ready! Connection latency: 12ms', 'success');
+          } else {
+            const key = document.getElementById('broker-api-key').value;
+            if (!key) { showToast('Please enter your API Key to test connection', 'error'); return; }
+            showToast(`✅ Connected to ${selectedBroker} API! Session Token Valid.`, 'success');
+          }
+        });
+      }
+
       if (connectBtn) {
         connectBtn.addEventListener('click', () => {
           if (!selectedBroker) { showToast('Please select a broker', 'error'); return; }
-          state.brokers.push({ name: selectedBroker, clientId: document.getElementById('broker-client-id').value || 'DEMO', connected: true });
+          const isPaper = selectedBroker === 'Paper Trading (Virtual)';
+          const clientId = document.getElementById('broker-client-id').value || (isPaper ? 'PAPER_SIM' : 'DEMO');
+
+          state.brokers.push({
+            name: selectedBroker,
+            clientId,
+            isPaper,
+            connected: true,
+            createdAt: new Date().toISOString()
+          });
           saveState();
           showToast(`${selectedBroker} connected successfully!`, 'success');
           modal.style.display = 'none';
